@@ -57,7 +57,7 @@ module Reel
       def readpartial
         while !@socket.closed? && !@socket.eof?
           begin
-            data = @socket.readpartial(@buffer_size)
+            data = @socket.readpartial(BUFFER_SIZE)
             @parser << data
           rescue ::HTTP2::Error::HandshakeError => he
             raise HTTP2ParseError.new data
