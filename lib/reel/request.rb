@@ -12,6 +12,12 @@ module Reel
     extend Forwardable
     include RequestMixin
 
+    # http/2 psuedo-headers
+    METHOD_KEY     = ':method'.freeze
+    SCHEME_KEY     = ':scheme'.freeze
+    PATH_KEY       = ':path'.freeze
+    HTTP_SCHEME    = 'http'.freeze
+
     def_delegators :@connection, :remote_addr, :respond
     def_delegator  :@response_writer, :handle_response
     attr_reader :body
@@ -112,9 +118,24 @@ module Reel
     # the underlying connection
     def websocket
       @websocket ||= begin
-        raise StateError, "can't upgrade this request to a websocket" unless websocket?  
+        raise StateError, "can't upgrade this request to a websocket" unless websocket?
         WebSocket.new(self, @connection)
       end
+    end
+
+    # Can the current request be upgraded to HTTP/2?
+    def http2?; @request_info.http2_request?; end
+
+    def http2_initial_stream_data
+      headers = Hash[@request_info.headers.map {|k,v| [k.downcase, v]}]
+      @request_info.http2_settings.merge({
+        headers: {
+          METHOD_KEY => @request_info.http_method,
+          SCHEME_KEY => HTTP_SCHEME,
+          PATH_KEY   => @request_info.url
+        }.merge(headers),
+        body: @body
+      })
     end
 
     # Friendlier inspect

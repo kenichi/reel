@@ -73,12 +73,22 @@ module Reel
     # many if the client is using keep-alive
     def each_request
       while req = request
+
+        # HTTP/2 upgrade request
+        if req.http2?
+          settings = req.http2_initial_stream_data
+          c = Connection::HTTP2.new hijack_socket, settings
+          c.readpartial
+          break
+        end
+
         yield req
 
         # Websockets upgrade the connection to the Websocket protocol
         # Once we have finished processing a Websocket, we can't handle
         # additional requests
         break if req.websocket?
+
       end
     end
 
