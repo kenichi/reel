@@ -87,3 +87,45 @@ module WebSocketHelpers
     end
   end
 end
+
+class ReelTest
+  RESPONSE = 'ohai thar'
+
+  def initialize &block
+    yield self
+    @ex = nil
+    test!
+  end
+
+  def handler &block
+    @handler ||= ->(connection) do
+      connection.each_request do |request|
+        begin
+          block[request] if block
+        rescue => @ex
+        end
+        request.respond :ok, RESPONSE
+      end
+    end
+  end
+
+  def client
+    @client = Proc.new if block_given?
+    @client ||= ->(http, server) { http.get example_url }
+  end
+
+  def test!
+    with_reel(handler) do |server|
+      begin
+        client[Net::HTTP.new(example_addr, example_port), server] if server && server.alive?
+      rescue => @ex
+      ensure
+      end
+    end
+  rescue => ex
+    @ex = ex
+  ensure
+    raise @ex unless @ex.nil?
+  end
+
+end

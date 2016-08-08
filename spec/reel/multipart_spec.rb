@@ -4,15 +4,31 @@ require 'net/http'
 
 RSpec.describe Reel::Request::Multipart do
 
+  EOL = "\r\n".freeze
+  MULTIPART_BOUNDARY = "Myboundary".freeze
+  MULTIPART_BOUNDARY_WITH_QUOTES = "'t'e\"s\"t".freeze
+  PART_NAME = "datafile".freeze
+
   let(:endpoint) { URI(example_url) }
   let(:response_body) { "ohai thar" }
   let(:txt_filepath){ 'spec/support/multipart_test_example.txt' }
   let(:img_path){'logo.png'}
 
-  EOL = "\r\n".freeze
-  MULTIPART_BOUNDARY = "Myboundary".freeze
-  MULTIPART_BOUNDARY_WITH_QUOTES = "'t'e\"s\"t".freeze
-  PART_NAME = "datafile".freeze
+  let :img_post_request do
+    post_body = [
+      "--#{MULTIPART_BOUNDARY}",
+      "Content-Disposition: form-data; name=\"#{PART_NAME}\"; filename=\"#{File.basename(img_path)}\"",
+      'Content-Type: application/octet-stream',
+      nil,
+      File.read(img_path),
+      "--#{MULTIPART_BOUNDARY}--"
+    ]
+
+    request = Net::HTTP::Post.new(endpoint.request_uri)
+    request.body = post_body.join(EOL)
+    request['Content-Type'] = "multipart/form-data, boundary=#{MULTIPART_BOUNDARY}"
+    request
+  end
 
   it "return nil if content type is not multipart" do
     ex = nil
@@ -255,5 +271,67 @@ RSpec.describe Reel::Request::Multipart do
     end
 
     raise ex if ex
+  end
+
+  describe '#multipart?' do
+
+    it 'is true when multipart' do
+      ReelTest.new do |rt|
+        rt.handler do |req|
+          expect(req.multipart?(req.body)).to be true
+        end
+        rt.client {|http, _| http.request img_post_request}
+      end
+    end
+
+    it 'is false when not multipart' do
+      ReelTest.new do |rt|
+        rt.handler do |req|
+          expect(req.multipart?(req.body)).to be false
+        end
+      end
+    end
+
+  end
+
+  describe '#multipart' do
+
+    it 'returns nil if called without multipart post' do
+      ReelTest.new do |rt|
+        rt.handler do |req|
+          expect(req.multipart).to be_nil
+        end
+      end
+    end
+
+    it 'does not return an empty hash when given valid post' do
+      ReelTest.new do |rt|
+        rt.handler do |req|
+          expect(req.multipart).to_not be_empty
+        end
+        rt.client {|http, _| http.request img_post_request}
+      end
+    end
+
+    it 'does not close tempfile before passing to handler' do
+      ReelTest.new do |rt|
+        rt.handler do |req|
+          expect(req.multipart[PART_NAME][:on_complete]).to be true # TODO remove
+          expect(req.multipart[PART_NAME][:data]).to_not be_closed
+        end
+        rt.client {|http, _| http.request img_post_request}
+      end
+    end
+
+    it 'does not die if called more than once' do
+      ReelTest.new do |rt|
+        rt.handler do |req|
+          expect(req.multipart).to_not be_empty
+          expect(req.multipart).to_not be_empty
+        end
+        rt.client {|http, _| http.request img_post_request}
+      end
+    end
+
   end
 end
