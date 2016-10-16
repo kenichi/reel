@@ -18,7 +18,7 @@ module Reel
     BUFFER_SIZE = 16384
     attr_reader :buffer_size, :server
 
-    def initialize(socket, buffer_size = nil, server = nil)
+    def initialize(socket, buffer_size = nil, server = nil, data = nil)
       @attached    = true
       @socket      = socket
       @keepalive   = true
@@ -29,6 +29,8 @@ module Reel
 
       reset_request
       @response_state = :headers
+
+      @parser << data if data
     end
 
     # Is the connection still active?
