@@ -19,6 +19,8 @@ module Reel
     execute_block_on_receiver :initialize
     finalizer :shutdown
 
+    attr_reader :options
+
     def initialize(server, options={}, &callback)
       if options[:spy]
         require 'reel/spy'

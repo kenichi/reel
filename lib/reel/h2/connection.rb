@@ -12,13 +12,13 @@ module Reel
         :stream
       ]
 
-      def initialize socket, server, stream_handler = nil
+      def initialize socket, server
         @socket = socket
         @server = server
 
         @parser = ::HTTP2::Server.new
 
-        @stream_handler = stream_handler || Stream
+        @stream_handler = @server.options[:h2] || Stream
         @stream_handlers = Set.new
 
         PARSER_EVENTS.each {|e| @parser.on(e){|x| __send__ e, x}}
@@ -35,6 +35,7 @@ module Reel
             debug "Received bytes: #{data.unpack("H*").first}"
             @parser << data
           end
+          close
 
         rescue ::HTTP2::Error::HandshakeError => he
           raise H2::ParseError.new data
@@ -42,8 +43,17 @@ module Reel
         rescue => e
           error "Exception: #{e.message} - closing socket"
           STDERR.puts e.backtrace
-          @socket.close
+          close
+
         end
+      end
+
+      def upgrade settings, request_hash, body
+        @parser.upgrade settings, request_hash, body
+      end
+
+      def close
+        @socket.close
       end
 
       protected

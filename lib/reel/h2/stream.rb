@@ -2,14 +2,6 @@ module Reel
   module H2
     class Stream
 
-      # http/2 psuedo-headers
-      #
-      METHOD_KEY  = ':method'
-      SCHEME_KEY  = ':scheme'
-      PATH_KEY    = ':path'
-      STATUS_KEY  = ':status'
-      HTTP_SCHEME = 'http'
-
       STREAM_EVENTS = [
         :active,
         :close,

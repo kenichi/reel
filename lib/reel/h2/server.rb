@@ -3,7 +3,7 @@ module Reel
     class Server < Reel::Server
 
       def handle_connection(socket)
-        connection = H2::Connection.new(socket, self, @options[:h2])
+        connection = H2::Connection.new(socket, self)
         connection.read
       rescue H2::ParseError => pe
         Logger.debug "Degrading to HTTP/1.x"
