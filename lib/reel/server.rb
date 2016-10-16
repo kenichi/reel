@@ -45,8 +45,8 @@ module Reel
       end
     end
 
-    def handle_connection(socket)
-      connection = Connection.new(socket, nil, self)
+    def handle_connection(socket, data = nil)
+      connection = Connection.new(socket, nil, self, data)
 
       begin
         @callback.call(connection)
