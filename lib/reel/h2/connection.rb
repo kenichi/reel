@@ -4,6 +4,7 @@ module Reel
   module H2
     class Connection
       include Reel::Logger
+      extend Forwardable
 
       PARSER_EVENTS = [
         :frame,
@@ -11,6 +12,13 @@ module Reel
         :frame_received,
         :stream
       ]
+
+      PARSER_COMMANDS = [
+        :new_stream,
+        :goaway
+      ]
+
+      def_delegators :@parser, *PARSER_COMMANDS
 
       def initialize socket, server
         @socket = socket
@@ -32,7 +40,7 @@ module Reel
         begin
           while !@socket.closed? && !(@socket.eof? rescue true)
             data = @socket.readpartial(1024)
-            debug "Received bytes: #{data.unpack("H*").first}"
+            # debug "Received bytes: #{data.unpack("H*").first}"
             @parser << data
           end
           close
@@ -44,6 +52,7 @@ module Reel
           error "Exception: #{e.message} - closing socket"
           STDERR.puts e.backtrace
           close
+          require 'pry'; binding.pry
 
         end
       end
@@ -53,13 +62,13 @@ module Reel
       end
 
       def close
-        @socket.close
+        @socket.close if @socket
       end
 
       protected
 
       def frame b
-        debug "Writing bytes: #{b.unpack("H*").first}"
+        # debug "Writing bytes: #{b.unpack("H*").first}"
         @socket.write b
       end
 
