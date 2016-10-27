@@ -19,7 +19,7 @@ class Hello < Reel::H2::Stream
 
 end
 
-addr, port = '127.0.0.1', 4430
+addr, port, tls_port = '127.0.0.1', 9292, 4430
 options = {
   # spy: true,
   h2: Hello,
@@ -31,9 +31,9 @@ options = {
   }
 }
 
-puts "*** Starting H2 TLS server on tcp://#{addr}:#{port}"
-server = Reel::H2::Server::HTTPS.run(addr, port, options) do |h1|
-  h1.each_request do |request|
-    request.respond :ok, "hello, world!\n"
-  end
-end
+h1_handler = ->(h1){ h1.each_request {|r| r.respond :ok, "hello, world!\n"}}
+
+puts "*** Starting H2 TLS server on tcp://#{addr}:#{tls_port}"
+tls_server = Reel::H2::Server::HTTPS.new(addr, tls_port, options, &h1_handler)
+puts "*** Starting H2 Upgrade server on tcp://#{addr}:#{port}"
+upgrade_server = Reel::H2::Server::HTTP.run(addr, port, options, &h1_handler)

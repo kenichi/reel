@@ -29,6 +29,8 @@ module Reel
 
       end
 
+      Reel::Connection.prepend H2::Upgrade::Connection
+
       module Request
         # Can the current request be upgraded to HTTP/2?
         def h2?; @request_info.h2_request?; end
@@ -60,14 +62,16 @@ module Reel
               H2::PATH_KEY      => url }
           end
         end
+
+        Reel::Request::Info.include H2::Upgrade::Request::Info
+
       end
+
+      Reel::Request.include H2::Upgrade::Request
 
     end
   end
 
-  Connection.prepend H2::Upgrade::Connection
-  Request.include H2::Upgrade::Request
-  Request::Info.include H2::Upgrade::Request::Info
 end
 
 
