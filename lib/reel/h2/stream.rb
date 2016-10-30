@@ -13,6 +13,8 @@ module Reel
         :data
       ]
 
+      OPTIONS = 'OPTIONS'
+
       def initialize stream, connection
         @stream = stream
         @connection = connection
@@ -63,9 +65,11 @@ module Reel
       end
 
       def h2c_upgrade
-        log :debug, "Processing h2c Upgrade request: #{req}"
-        raise NotImplementedError
-        if @request_headers[':method'] != 'OPTIONS'
+        log :debug, "Processing h2c Upgrade request"
+        if @request_headers[METHOD_KEY] == OPTIONS
+          handle_upgrade_options
+        else
+          handle_stream
         end
       end
 
@@ -73,6 +77,14 @@ module Reel
 
       def handle_stream
         raise NotImplementedError
+      end
+
+      def handle_upgrade_options
+        @stream.headers({
+          Reel::H2::STATUS_KEY => '200',
+          'content-length' => '0'
+        })
+        @stream.close
       end
 
       # ---

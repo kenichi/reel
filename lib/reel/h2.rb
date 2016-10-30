@@ -12,11 +12,11 @@ module Reel
 
     # http/2 psuedo-headers
     #
-    AUTHORITY_KEY  = ':authority'
-    METHOD_KEY     = ':method'
-    PATH_KEY       = ':path'
-    SCHEME_KEY     = ':scheme'
-    STATUS_KEY     = ':status'
+    AUTHORITY_KEY = ':authority'
+    METHOD_KEY    = ':method'
+    PATH_KEY      = ':path'
+    SCHEME_KEY    = ':scheme'
+    STATUS_KEY    = ':status'
 
   end
 end

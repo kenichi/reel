@@ -14,7 +14,8 @@ module Reel
 
           # HTTP/2 upgrade request
           #
-          if req.h2?
+          if req && req.h2?
+            Logger.debug "Upgrading to HTTP/2"
             socket = hijack_socket
             connection = H2::Connection.new socket, server
             socket.write UPGRADE_RESPONSE
@@ -56,10 +57,11 @@ module Reel
           end
 
           def h2_request_hash
-            { H2::SCHEME_KEY    => HTTP_SCHEME,
-              H2::METHOD_KEY    => http_method,
-              H2::AUTHORITY_KEY => headers[HOST_KEY],
-              H2::PATH_KEY      => url }
+            { H2::SCHEME_KEY               => HTTP_SCHEME,
+              H2::METHOD_KEY               => http_method,
+              H2::AUTHORITY_KEY            => headers[HOST_KEY],
+              H2::PATH_KEY                 => url,
+              Reel::Request::Info::UPGRADE => H2C }
           end
         end
 
@@ -73,5 +75,3 @@ module Reel
   end
 
 end
-
-

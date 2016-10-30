@@ -50,9 +50,7 @@ module Reel
 
         rescue => e
           error "Exception: #{e.message} - closing socket"
-          STDERR.puts e.backtrace
           close
-          require 'pry'; binding.pry
 
         end
       end
