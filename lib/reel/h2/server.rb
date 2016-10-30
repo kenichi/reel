@@ -15,6 +15,10 @@ module Reel
         connection.read
       end
 
+      def handle_push_promise push_promise
+        push_promise.keep!
+      end
+
       class HTTP < H2::Server
         include Reel::Server::Template::HTTP
       end

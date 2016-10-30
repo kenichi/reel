@@ -5,63 +5,29 @@ require 'reel/h2'
 require 'pry'
 require 'pry-byebug'
 
-class Hello < Reel::H2::Stream
+Reel::Logger.level = :debug
+
+class Hello < Reel::H2::StreamHandler
+
+  PUSH_PROMISE = '<html>wait for it...<script src="/pushed.js"></script></html>'.freeze
+  PUSHED_JS = '(function(){ alert("hello h2 push promise!"); })();'.freeze
 
   def handle_stream
-    case @request_headers[Reel::H2::PATH_KEY]
+    case path
     when '/push_promise'
+      push_promise '/pushed.js', :js, PUSHED_JS
+      respond :ok, :html, PUSH_PROMISE
+      keep_promises!
 
-      promise_headers = {
-        Reel::H2::METHOD_KEY    => 'GET',
-        Reel::H2::AUTHORITY_KEY => @request_headers[Reel::H2::AUTHORITY_KEY],
-        Reel::H2::PATH_KEY      => '/pushed.js',
-        Reel::H2::SCHEME_KEY    => @request_headers[Reel::H2::SCHEME_KEY]
-      }
-
-      push_res = '(function(){ alert("hello h2 push promise!"); })();'
-      push_stream = nil
-      @stream.promise(promise_headers) do |push|
-        push.headers({
-          Reel::H2::STATUS_KEY => '200',
-          'content-length' => push_res.bytesize.to_s,
-          'content-type' => 'application/javascript'
-        }, end_stream: false)
-        push_stream = push
-      end
-
-      res = '<html>wait for it...<script src="/pushed.js"></script></html>'
-      @stream.headers({
-        Reel::H2::STATUS_KEY => '200',
-        'content-length' => res.bytesize.to_s,
-        'content-type' => 'text/html'
-      }, end_stream: false)
-      @stream.data res.slice!(0,3), end_stream: false
-      @stream.data res
-      @stream.close
-
-      push_stream.data push_res.slice!(0,5), end_stream: false
-      sleep 1
-      push_stream.data push_res
-      push_stream.close
+    when '/pushed.js'
+      respond :not_found
+      # respond :ok, :js, PUSHED_JS
 
     when '/favicon.ico'
-      @stream.headers({
-        Reel::H2::STATUS_KEY => '404',
-        'content-length' => '0'
-      }, end_stream: false)
-      @stream.data ''
-      @stream.close
+      respond :not_found
 
     else
-      res = "hello h2 world!\n"
-      @stream.headers({
-        Reel::H2::STATUS_KEY => '200',
-        'content-length' => res.bytesize.to_s,
-        'content-type' => 'text/plain'
-      }, end_stream: false)
-      @stream.data res.slice!(0,3), end_stream: false
-      @stream.data res
-      @stream.close
+      respond :ok, :text, "hello h2 world!\n"
     end
   end
 

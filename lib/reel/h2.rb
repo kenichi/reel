@@ -2,8 +2,10 @@
 
 require 'reel'
 require 'reel/h2/connection'
-require 'reel/h2/stream'
+require 'reel/h2/push_promise'
+require 'reel/h2/response'
 require 'reel/h2/server'
+require 'reel/h2/stream_handler'
 require 'reel/h2/upgrade'
 
 module Reel

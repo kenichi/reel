@@ -3,7 +3,6 @@ require 'http/2'
 module Reel
   module H2
     class Connection
-      include Reel::Logger
       extend Forwardable
 
       PARSER_EVENTS = [
@@ -20,13 +19,15 @@ module Reel
 
       def_delegators :@parser, *PARSER_COMMANDS
 
+      attr_reader :server
+
       def initialize socket, server
         @socket = socket
         @server = server
 
         @parser = ::HTTP2::Server.new
 
-        @stream_handler = @server.options[:h2] || Stream
+        @stream_handler = @server.options[:h2] || StreamHandler
         @stream_handlers = Set.new
 
         PARSER_EVENTS.each {|e| @parser.on(e){|x| __send__ e, x}}
@@ -40,7 +41,7 @@ module Reel
         begin
           while !@socket.closed? && !(@socket.eof? rescue true)
             data = @socket.readpartial(1024)
-            # debug "Received bytes: #{data.unpack("H*").first}"
+            # Logger.debug "Received bytes: #{data.unpack("H*").first}"
             @parser << data
           end
           close
@@ -49,7 +50,8 @@ module Reel
           raise H2::ParseError.new data
 
         rescue => e
-          error "Exception: #{e.message} - closing socket"
+          Logger.error "Exception: #{e.message} - closing socket"
+          STDERR.puts e.backtrace
           close
 
         end
@@ -66,16 +68,16 @@ module Reel
       protected
 
       def frame b
-        # debug "Writing bytes: #{b.unpack("H*").first}"
+        # Logger.debug "Writing bytes: #{b.unpack("H*").first}"
         @socket.write b
       end
 
       def frame_sent f
-        debug "Sent frame: #{f.inspect}"
+        Logger.debug "Sent frame: #{f.inspect}"
       end
 
       def frame_received f
-        debug "Received frame: #{f.inspect}"
+        Logger.debug "Received frame: #{f.inspect}"
       end
 
       def stream s
