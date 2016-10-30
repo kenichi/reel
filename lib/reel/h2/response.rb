@@ -2,6 +2,10 @@ module Reel
   module H2
     class Response
 
+      CONTENT_LENGTH = 'content-length'.freeze
+
+      attr_reader :content_length, :status
+
       def initialize status, body_or_headers = nil, body = ''
         self.status = status
 
@@ -13,14 +17,23 @@ module Reel
           @body = body_or_headers
         end
 
-        case @body
-        when String
-          @headers[Reel::Response::CONTENT_LENGTH] ||= @body.bytesize.to_s
-        when IO
-          @headers[Reel::Response::CONTENT_LENGTH] ||= @body.stat.size.to_s
-        when NilClass
-          @headers[Reel::Response::CONTENT_LENGTH] = '0'
-        else raise TypeError, "can't render #{@body.class} as a response body"
+        init_content_length
+      end
+
+      def init_content_length
+        @content_length = case @body
+          when String
+            @body.bytesize.to_s
+          when IO
+            @body.stat.size.to_s
+          when NilClass
+            '0'
+          else
+            raise TypeError, "can't render #{@body.class} as a response body"
+          end
+
+        unless @headers.any? {|k,_| k.downcase == CONTENT_LENGTH}
+          @headers[CONTENT_LENGTH] = @content_length
         end
       end
 

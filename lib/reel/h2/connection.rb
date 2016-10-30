@@ -19,7 +19,7 @@ module Reel
 
       def_delegators :@parser, *PARSER_COMMANDS
 
-      attr_reader :server
+      attr_reader :server, :socket
 
       def initialize socket, server
         @socket = socket
@@ -68,16 +68,16 @@ module Reel
       protected
 
       def frame b
-        # Logger.debug "Writing bytes: #{b.unpack("H*").first}"
+        Logger.debug "Writing bytes: #{b.unpack("H*").first}" if Reel::H2.verbose?
         @socket.write b
       end
 
       def frame_sent f
-        Logger.debug "Sent frame: #{f.inspect}"
+        Logger.debug "Sent frame: #{f.inspect}" if Reel::H2.verbose?
       end
 
       def frame_received f
-        Logger.debug "Received frame: #{f.inspect}"
+        Logger.debug "Received frame: #{f.inspect}" if Reel::H2.verbose?
       end
 
       def stream s

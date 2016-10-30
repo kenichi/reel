@@ -5,19 +5,25 @@ require 'reel/h2'
 require 'pry'
 require 'pry-byebug'
 
-Reel::Logger.level = :debug
+# Reel::Logger.level = :debug
+# Reel::H2.verbose!
 
 class Hello < Reel::H2::StreamHandler
 
-  PUSH_PROMISE = '<html>wait for it...<script src="/pushed.js"></script></html>'.freeze
+  PUSH_PROMISE = '<html>wait for it...<img src="/logo.png"/><script src="/pushed.js"></script></html>'.freeze
   PUSHED_JS = '(function(){ alert("hello h2 push promise!"); })();'.freeze
+  LOGO_PNG = File.read File.expand_path '../../logo.png', __FILE__
 
   def handle_stream
-    case path
+    case request_path
     when '/push_promise'
-      push_promise '/pushed.js', :js, PUSHED_JS
+      push_promise '/logo.png', :png, LOGO_PNG
+
+      pp = push_promise_for '/pushed.js', :js, PUSHED_JS
+      pp.make_on! @stream
       respond :ok, :html, PUSH_PROMISE
-      keep_promises!
+      pp.keep!
+      log :info, pp
 
     when '/pushed.js'
       respond :not_found
@@ -25,6 +31,10 @@ class Hello < Reel::H2::StreamHandler
 
     when '/favicon.ico'
       respond :not_found
+
+    when '/logo.png'
+      respond :not_found
+      # respond :ok, :png, LOGO_PNG
 
     else
       respond :ok, :text, "hello h2 world!\n"

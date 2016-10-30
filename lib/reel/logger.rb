@@ -13,7 +13,8 @@ module Reel
     end
 
     def level=(level)
-      logger.level = ::Logger.const_get(level.to_s.upcase)
+      level = ::Logger.const_get(level.to_s.upcase) if Symbol === level
+      logger.level = level
     end
 
     def debug(msg); logger.debug(msg); end
@@ -24,4 +25,4 @@ module Reel
 end
 
 # default to sane logging
-Reel::Logger.logger.level = ::Logger::INFO
+Reel::Logger.level = :info

@@ -25,7 +25,13 @@ module Reel
       end
 
       def log level, msg
-        Logger.__send__ level, "[stream #{@stream.id}] #{msg}"
+        msg = case msg
+              when Response;    format_response msg
+              when PushPromise; format_push_promise msg
+              when String;      "[stream #{@stream.id}] #{msg}"
+              else;             msg
+              end
+        Logger.__send__ level, msg
       end
 
       def stream= stream
@@ -34,11 +40,26 @@ module Reel
         STREAM_DATA_EVENTS.each {|e| @stream.on(e){|x| __send__ e, x}}
       end
 
-      def path
-        @request_headers[Reel::H2::PATH_KEY]
+      # --- request helpers
+
+      def request_path
+        @request_headers[PATH_KEY]
       end
 
-      # ---
+      def request_method
+        @request_headers[METHOD_KEY]
+      end
+
+      def request_authority
+        @request_headers[AUTHORITY_KEY]
+      end
+
+      def request_addr
+        addr = @connection.socket.peeraddr
+        Array === addr ? addr[3] : nil
+      end
+
+      # --- override these
 
       def handle_stream
         raise NotImplementedError
@@ -63,17 +84,26 @@ module Reel
           body = body_or_headers
         end
 
-        case response
-        when Symbol, Fixnum, Integer
-          response = H2::Response.new(response, headers, body)
-        when H2::Response
-        else raise TypeError, "invalid response: #{response.inspect}"
-        end
+        @response = case response
+                    when Symbol, Fixnum, Integer
+                      response = H2::Response.new(response, headers, body)
+                    when H2::Response
+                      response
+                    else raise TypeError, "invalid response: #{response.inspect}"
+                    end
 
-        response.respond_on(@stream)
+        @response.respond_on(@stream)
+        log :info, @response
       end
 
-      def push_promise path, body_or_headers = {}, body = nil
+      def push_promise *args
+        pp = push_promise_for *args
+        make_promise! pp
+        @connection.server.async.handle_push_promise pp
+        log :info, pp
+      end
+
+      def push_promise_for path, body_or_headers = {}, body = nil
         case body_or_headers
         when Hash
           headers = body_or_headers
@@ -87,15 +117,19 @@ module Reel
         headers.merge! Reel::H2::AUTHORITY_KEY => @request_headers[Reel::H2::AUTHORITY_KEY],
                        Reel::H2::SCHEME_KEY    => @request_headers[Reel::H2::SCHEME_KEY]
 
-        pp = PushPromise.new path, headers, body
-        pp.make_on! @stream
-        @push_promises << pp
-        pp
+        PushPromise.new path, headers, body
+      end
+
+      def make_promise! p
+        p.make_on! @stream
+        @push_promises << p
+        p
       end
 
       def keep_promises!
         @push_promises.each do |promise|
           @connection.server.async.handle_push_promise promise
+          log :info, promise
         end
       end
 
@@ -159,11 +193,25 @@ module Reel
                'application/javascript'
              when :json
                'application/json'
+             when :png
+               'image/png'
              when :text
                'text/plain'
              else raise ArgumentError.new "unknown default header type: #{sym}"
              end
         { CONTENT_TYPE => ct }
+      end
+
+      def format_response response
+        %{[stream #{@stream.id}] #{request_addr} } +
+        %{"#{request_method} #{request_path} HTTP/2" } +
+        %{#{response.status} #{response.content_length}}
+      end
+
+      def format_push_promise promise
+        %{[stream #{promise.push_stream.id}] #{request_addr} } +
+        %{"PUSH #{promise.path} HTTP/2" } +
+        %{#{PushPromise::STATUS} #{promise.content_length}}
       end
 
     end
