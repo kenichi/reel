@@ -12,11 +12,11 @@ module Reel
     CLOSE              = 'close'.freeze
 
     attr_reader   :socket, :parser, :current_request
-    attr_accessor :request_state, :response_state
+    attr_accessor :request_state, :response_state, :server
 
     # Attempt to read this much data
     BUFFER_SIZE = 16384
-    attr_reader :buffer_size, :server
+    attr_reader :buffer_size
 
     def initialize(socket, buffer_size = nil, server = nil, data = nil)
       @attached    = true

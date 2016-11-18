@@ -1,11 +1,24 @@
 module Reel
   module H2
+
+    # mimic +Reel::Response+ behavior by providing similar API to respond to a
+    # +HTTP2::Stream+
+    #
     class Response
 
       CONTENT_LENGTH = 'content-length'.freeze
 
       attr_reader :content_length, :status
 
+      # build a new +Response+ object
+      #
+      # @param [Integer, Symbol] status HTTP status code or symbol from
+      #                          +Reel::Reponse::SYMBOL_TO_STATUS_CODE+
+      # @param [Hash, String] body_or_headers
+      # @param [String] body optional
+      #
+      # TODO: should mimic existing API like this?
+      #
       def initialize status, body_or_headers = nil, body = ''
         self.status = status
 
@@ -20,6 +33,8 @@ module Reel
         init_content_length
       end
 
+      # sets the content length in the headers by the byte size of +@body+
+      #
       def init_content_length
         @content_length = case @body
           when String
@@ -37,6 +52,9 @@ module Reel
         end
       end
 
+      # sets +@status+ either from given integer value (HTTP status code) or by
+      # mapping a +Symbol+ in +Reel::Response::SYMBOL_TO_STATUS_CODE+ to one
+      #
       def status= status
         case status
         when Integer
@@ -52,6 +70,10 @@ module Reel
         end
       end
 
+      # send the headers and body out on +stream+
+      #
+      # NOTE: +:status+ must come first?
+      #
       def respond_on stream
         headers = { Reel::H2::STATUS_KEY => @status.to_s }.merge @headers
         stream.headers headers

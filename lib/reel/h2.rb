@@ -12,6 +12,8 @@ module Reel
     SCHEME_KEY    = ':scheme'
     STATUS_KEY    = ':status'
 
+    # turn on extra verbose debug logging
+    #
     def self.verbose!
       @verbose = true
     end
@@ -30,4 +32,3 @@ require 'reel/h2/push_promise'
 require 'reel/h2/response'
 require 'reel/h2/server'
 require 'reel/h2/stream_handler'
-require 'reel/h2/upgrade'

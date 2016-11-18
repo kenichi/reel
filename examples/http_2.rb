@@ -1,52 +1,93 @@
 #!/usr/bin/env ruby
+# frozen_string_literals: true
 
 require 'bundler/setup'
-require 'reel/h2'
+require 'date'
 require 'pry'
 require 'pry-byebug'
+require 'reel/h2/upgrade'
+require 'terraformer' # might need to add this to Gemfile
 
 # Reel::Logger.level = :debug
 # Reel::H2.verbose!
 
-class Hello < Reel::H2::StreamHandler
+PUSH_PROMISE = '<html>wait for it...<img src="/logo.png"/><script src="/pushed.js"></script><script src="/sse.js"></script></html>'
+PUSHED_JS    = '(()=>{ alert("hello h2 push promise!"); })();'
+LOGO_PNG     = File.read File.expand_path '../../logo.png', __FILE__
+SSE_JS       =<<~EOJS
+  var es = new EventSource('/events.json');
+  es.addEventListener('example', e => {
+    var data = JSON.parse(e.data);
+    console.log(data);
+  });
+EOJS
 
-  PUSH_PROMISE = '<html>wait for it...<img src="/logo.png"/><script src="/pushed.js"></script></html>'.freeze
-  PUSHED_JS = '(function(){ alert("hello h2 push promise!"); })();'.freeze
-  LOGO_PNG = File.read File.expand_path '../../logo.png', __FILE__
+class EventGenerator
+  include Celluloid
 
-  def handle_stream
-    case request_path
-    when '/push_promise'
-      push_promise '/logo.png', :png, LOGO_PNG
+  def initialize
+    @listeners = Set.new
+    @event_count = {}
+    @point = Terraformer::Point.new -121.6970, 45.3781 # mt. hood
+  end
 
-      pp = push_promise_for '/pushed.js', :js, PUSHED_JS
-      pp.make_on! @stream
-      respond :ok, :html, PUSH_PROMISE
-      pp.keep!
-      log :info, pp
+  def add_stream_handler sh
+    @listeners << sh
+    @event_count[sh] = 0
+  end
 
-    when '/pushed.js'
-      respond :not_found
-      # respond :ok, :js, PUSHED_JS
+  def remove_stream_handler sh
+    @listeners.delete sh
+    @event_count.delete sh
+  end
 
-    when '/favicon.ico'
-      respond :not_found
+  def generate
+    sleep rand(5) + 1
+    data = {
+      geojson: @point.random_points(1).first.to_feature.to_hash,
+      date: DateTime.now.iso8601
+    }.to_json
+    data =<<~EODATA
+      event: example
+      data: #{data}
 
-    when '/logo.png'
-      respond :not_found
-      # respond :ok, :png, LOGO_PNG
+    EODATA
 
-    else
-      respond :ok, :text, "hello h2 world!\n"
+    @listeners.each do |sh|
+      @event_count[sh] += 1
+      if @event_count[sh] > 5
+        stream_data data: data, to: sh
+        remove_stream_handler sh
+      else
+        stream_data data: data, to: sh, end_stream: false
+      end
+    end
+
+    # puts "EVENT:\n#{data}\n\n"
+
+    async.generate
+  end
+
+  def stream_data data:, to:, end_stream: true
+    begin
+      to.stream.data data, end_stream: end_stream
+    rescue HTTP2::Error::StreamClosed => sc
+      Reel::Logger.warn "stream closed: #{sc.message}"
+      remove_stream_handler to
+    rescue => e
+      Reel::Logger.warn "execption: #{e.message}"
+      remove_stream_handler to
     end
   end
 
 end
 
-addr, port, tls_port = '127.0.0.1', 9292, 4430
-options = {
-  # spy: true,
-  h2: Hello,
+event = EventGenerator.new
+event.async.generate
+
+options  = {
+  host: '127.0.0.1',
+  port: 4430,
   sni: {
     'example.com' => {
       cert: File.read('cert.pem'),
@@ -55,12 +96,51 @@ options = {
   }
 }
 
-h1_handler = ->(h1){ h1.each_request {|r| r.respond :ok, "hello, HTTP/1.x world!\n"}}
+puts "*** Starting H2 TLS server on tcp://#{options[:host]}:#{options[:port]}"
+h2_server = Reel::H2::Server::HTTPS.new **options do
 
-puts "*** Starting H2 TLS server on tcp://#{addr}:#{tls_port}"
-tls_server = Reel::H2::Server::HTTPS.new(addr, tls_port, options, &h1_handler)
+  # this block is actually overriding `#handle_stream` in an anonymous
+  # `StreamHandler` descendent class. see `StreamBuilder.build`
 
-puts "*** Starting H2 Upgrade server on tcp://#{addr}:#{port}"
-upgrade_server = Reel::H2::Server::HTTP.new(addr, port, options, &h1_handler)
+  case request_path
+  when '/push_promise'
+    push_promise '/logo.png', :png, LOGO_PNG
+    push_promise '/sse.js', :js, SSE_JS
+
+    pp = push_promise_for '/pushed.js', :js, PUSHED_JS
+    pp.make_on! @stream
+    respond :ok, :html, PUSH_PROMISE
+    pp.keep!
+    log :info, pp
+
+  when '/pushed.js'
+    respond :not_found
+
+  when '/favicon.ico'
+    respond :not_found
+
+  when '/logo.png'
+    respond :not_found
+
+  when '/sse.js'
+    respond :ok, :js, SSE_JS
+
+  when '/events.json'
+    @stream.headers Reel::H2::STATUS_KEY => '200',
+                    'content-type' => 'text/event-stream'
+    event.add_stream_handler self
+
+  else
+    respond :ok, :text, "hello h2 world!\n"
+  end
+
+end
+
+options = {
+  host: '127.0.0.1',
+  port: 9292,
+}
+puts "*** Starting H2 Upgrade server on tcp://#{options[:host]}:#{options[:port]}"
+h2_server.upgrade_server **options
 
 sleep

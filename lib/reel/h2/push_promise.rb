@@ -1,15 +1,14 @@
 module Reel
   module H2
     class PushPromise
-      extend Forwardable
 
       GET    = 'GET'
-      STATUS = '200'
+      STATUS = '200' # TODO: can one push promise a redirect? 🤔
 
       attr_reader :content_length, :path, :push_stream
 
-      def_delegator :@fsm, :state
-
+      # build a new +PushPromise+ for the path, with the headers and body given
+      #
       def initialize path, body_or_headers = {}, body = nil
         @path = path
         if Hash === body_or_headers
@@ -37,6 +36,9 @@ module Reel
         @fsm = FSM.new
       end
 
+      # create a new promise stream from +stream+, send the headers and set
+      # +@push_stream+ from the callback
+      #
       def make_on! stream
         return unless @fsm.state == :init
         @fsm.transition :made
@@ -47,6 +49,8 @@ module Reel
         self
       end
 
+      # deliver the body for thise promise
+      #
       def keep! size = nil
         return unless @fsm.state == :made
         @fsm.transition :kept
@@ -69,10 +73,17 @@ module Reel
         end
       end
 
+      # cancel this promise, most likely due to a RST_STREAM frame from the
+      # client (already in cache, etc...)
+      #
+      # TODO: implement RST_STREAM handling to cancel promises?
+      #
       def cancel!
         @fsm.transition :canceled
       end
 
+      # simple state machine to guarantee promise process
+      #
       class FSM
         include Celluloid::FSM
         default_state :init
