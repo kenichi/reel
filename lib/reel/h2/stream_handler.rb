@@ -36,15 +36,16 @@ module Reel
 
       attr_reader :connection,
                   :push_promises,
+                  :request_body,
                   :request_headers,
                   :stream
 
       def initialize connection:, stream:
         self.stream = stream
         @connection = connection
+        @request_body = ''
         @request_headers = request_header_hash
         @push_promises = Set.new
-        @body = ''
       end
 
       # set ivar, and bind +@stream+ events to +self+
@@ -191,8 +192,22 @@ module Reel
         end
       end
 
+      # queue a goaway frame
+      #
+      def goaway
+        @connection.server.async.goaway @connection
+      end
+
+      # send goaway frame immediately
+      #
+      def goaway!
+        @connection.goaway
+      end
+
       protected
 
+      # called by +@stream+ when this stream is activated
+      #
       def active
         log :debug, 'client opened new stream'
       end
@@ -216,7 +231,7 @@ module Reel
       #
       def data d
         log :debug, "payload chunk: <<#{d}>>"
-        @body << d
+        @request_body << d
       end
 
       # called by +@stream+ when body/request is complete, signaling that client

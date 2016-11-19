@@ -29,6 +29,13 @@ module Reel
         push_promise.keep!
       end
 
+      # allow for goaways to be queued
+      #
+      def goaway connection
+        sleep 0.1
+        connection.goaway unless connection.closed?
+      end
+
       # 'h2c' server - for plaintext HTTP/2 connection
       #
       # NOTE: browsers don't support this and probably never will

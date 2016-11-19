@@ -16,7 +16,8 @@ module Reel
         :frame,
         :frame_sent,
         :frame_received,
-        :stream
+        :stream,
+        :goaway
       ]
 
       # delegated to the +@parser+ to handle server "commands"
@@ -38,7 +39,7 @@ module Reel
 
         # bind parser events to this instance
         #
-        PARSER_EVENTS.each {|e| @parser.on(e){|x| __send__ e, x}}
+        PARSER_EVENTS.each {|e| @parser.on(e){|x| __send__ "on_#{e}".to_sym, x}}
 
         Logger.debug "new H2::Connection: #{self}" if H2.verbose?
       end
@@ -58,7 +59,7 @@ module Reel
         begin
           while !@socket.closed? && !(@socket.eof? rescue true)
             data = @socket.readpartial(1024)
-            # Logger.debug "Received bytes: #{data.unpack("H*").first}"
+            Logger.debug "Received bytes: #{data.unpack("H*").first}"
             @parser << data
           end
           close
@@ -75,30 +76,39 @@ module Reel
         @socket.close if @socket
       end
 
+      def closed?
+        @socket.closed?
+      end
+
       protected
 
       # +@parser+ event methods
 
       # called by +@parser+ with a binary frame to write to the +@socket+
       #
-      def frame b
-        Logger.debug "Writing bytes: #{truncate_string(b.unpack("H*").first)}" if Reel::H2.verbose?
-        @socket.write b
+      def on_frame bytes
+        Logger.debug "Writing bytes: #{truncate_string(bytes.unpack("H*").first)}" if Reel::H2.verbose?
+        @socket.write bytes
       end
 
-      def frame_sent f
+      def on_frame_sent f
         Logger.debug "Sent frame: #{truncate_frame(f).inspect}" if Reel::H2.verbose?
       end
 
-      def frame_received f
+      def on_frame_received f
         Logger.debug "Received frame: #{truncate_frame(f).inspect}" if Reel::H2.verbose?
       end
 
       # the +@parser+ calls this when a new stream has been initiated by the
       # client, constructs new +StreamHandler+ descendent
       #
-      def stream s
+      def on_stream s
         @stream_handlers << server.stream_handler.new(connection: self, stream: s)
+      end
+
+      def on_goaway event
+        Logger.debug "Goaway: #{event.inspect}" if Reel::H2.verbose?
+        close
       end
 
       private

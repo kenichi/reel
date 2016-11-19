@@ -8,8 +8,8 @@ require 'pry-byebug'
 require 'reel/h2/upgrade'
 require 'terraformer' # might need to add this to Gemfile
 
-# Reel::Logger.level = :debug
-# Reel::H2.verbose!
+Reel::Logger.level = :debug
+Reel::H2.verbose!
 
 PUSH_PROMISE = '<html>wait for it...<img src="/logo.png"/><script src="/pushed.js"></script><script src="/sse.js"></script></html>'
 PUSHED_JS    = '(()=>{ alert("hello h2 push promise!"); })();'
@@ -97,7 +97,7 @@ options  = {
 }
 
 puts "*** Starting H2 TLS server on tcp://#{options[:host]}:#{options[:port]}"
-h2_server = Reel::H2::Server::HTTPS.new **options do
+h2_tls_server = Reel::H2::Server::HTTPS.new **options do
 
   # this block is actually overriding `#handle_stream` in an anonymous
   # `StreamHandler` descendent class. see `StreamBuilder.build`
@@ -108,7 +108,7 @@ h2_server = Reel::H2::Server::HTTPS.new **options do
     push_promise '/sse.js', :js, SSE_JS
 
     pp = push_promise_for '/pushed.js', :js, PUSHED_JS
-    pp.make_on! @stream
+    pp.make_on! stream
     respond :ok, :html, PUSH_PROMISE
     pp.keep!
     log :info, pp
@@ -126,21 +126,26 @@ h2_server = Reel::H2::Server::HTTPS.new **options do
     respond :ok, :js, SSE_JS
 
   when '/events.json'
-    @stream.headers Reel::H2::STATUS_KEY => '200',
+    stream.headers Reel::H2::STATUS_KEY => '200',
                     'content-type' => 'text/event-stream'
     event.add_stream_handler self
 
   else
     respond :ok, :text, "hello h2 world!\n"
+    goaway
   end
 
 end
 
-options = {
-  host: '127.0.0.1',
-  port: 9292,
-}
-puts "*** Starting H2 Upgrade server on tcp://#{options[:host]}:#{options[:port]}"
-h2_server.upgrade_server **options
+upgrade_options = options.dup
+upgrade_options[:port] = 9292
+puts "*** Starting H2 Upgrade server on tcp://#{upgrade_options[:host]}:#{upgrade_options[:port]}"
+upgrade_server = h2_tls_server.upgrade_server **upgrade_options
+
+h2_options = options.dup
+h2_options[:port] = 8080
+h2_options[:stream_handler] = h2_tls_server.stream_handler
+puts "*** Starting H2 server on tcp://#{h2_options[:host]}:#{h2_options[:port]}"
+h2_server = Reel::H2::Server::HTTP.new **h2_options
 
 sleep
