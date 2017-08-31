@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 
 ruby RUBY_VERSION
 
-gem 'jruby-openssl' if defined? JRUBY_VERSION
+gem 'jruby-openssl', platforms: :jruby
 
 # Specify your gem's dependencies in reel.gemspec
 gemspec
@@ -12,14 +12,12 @@ group :development do
 end
 
 group :development, :test do
-  gem 'h2', git: 'https://github.com/kenichi/h2'
+  gem 'h2', '0.4.0'
   gem 'pry'
+  gem 'pry-byebug', platforms: :mri
 end
 
 group :test do
-  gem 'certificate_authority'
-  gem 'websocket_parser', '>= 0.1.6'
-  gem 'rake'
   gem 'rspec'
   gem 'coveralls', require: false
 end
